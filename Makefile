@@ -1,46 +1,36 @@
-# Copyright 2026 Universidad de los Andes.
-# Licensed under the Solderpad Hardware License, Version 0.51 (the "License");
-# you may not use this file except in compliance with the License.
-# SPDX-License-Identifier: SHL-0.51
-#
-# Course: Arquitectura de Computadores (2026)
-# 
-# Authors:
-# - Nicolás Villegas <navillegas@miuandes.cl>
+TOP      := game_top
+PCF      := goboard.pcf
+RTL      := $(wildcard rtl/*.v)
+JSON     := $(TOP).json
+ASC      := $(TOP).asc
+BIN      := $(TOP).bin
+PYTHON   ?= python3
 
-# Configuration
-TOP  := pochoco_soc
-PCF  := goboard.pcf
+.PHONY: all bitstream prog clean test game
+all: bitstream
 
-# RTL Sources
-SRC  := $(wildcard ./rtl/*.v ./rtl/**/*.v)
+sw/game.hex: sw/game.s tools/assembler.py
+	$(MAKE) -C sw game.hex
 
-# Build Targets
-JSON := $(TOP).json
-ASC  := $(TOP).asc
-BIN  := $(TOP).bin
+game: sw/game.hex
 
-.PHONY: all prog clean stats
+$(JSON): $(RTL) sw/game.hex
+	yosys -p 'read_verilog $(RTL); synth_ice40 -top $(TOP) -json $@; stat'
 
-# Default target
-all: prog
-
-# Step 1: Synthesis using Yosys
-$(JSON): $(SRC)
-	yosys -p "read_verilog $(SRC); synth_ice40 -top $(TOP) -json ${TOP}.json; stat"
-
-# Step 2: Place and Route using NextPNR
 $(ASC): $(JSON) $(PCF)
-	nextpnr-ice40 --hx1k --package vq100 --json $(JSON) --pcf $(PCF) --asc $(ASC)
+	nextpnr-ice40 --hx1k --package vq100 --freq 25 --json $(JSON) --pcf $(PCF) --asc $@
 
-# Step 3: Bitstream Generation
 $(BIN): $(ASC)
-	icepack $(ASC) $(BIN)
+	icepack $(ASC) $@
 
-# Step 4: Flash the Board
+bitstream: $(BIN)
+
 prog: $(BIN)
 	iceprog $(BIN)
 
-# Clean up generated files
+test:
+	$(PYTHON) -m unittest discover -s tests -v
+
 clean:
 	rm -f $(JSON) $(ASC) $(BIN)
+	$(MAKE) -C sw clean
