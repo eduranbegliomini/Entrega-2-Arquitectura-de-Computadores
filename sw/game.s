@@ -16,8 +16,6 @@ _start:
 
     lui  x5, 0x262           # x5 = 2,500,000 cycles = 0.1 s
     addi x5, x5, 0x5A0
-    lui  x6, 0x4787           # x6 = 75,000,000 cycles = 3 s
-    addi x6, x6, -1856
 
     addi x7, x0, 0           # x7 = correct answers
     addi x8, x0, 0           # x8 = sum of exact response durations (cycles)
@@ -32,6 +30,11 @@ seed_ready:
 wait_release:
     lw   x12, 0(x3)
     bne  x12, x0, wait_release
+
+    # Reload the three-second preparation interval at the start of each round.
+    # x6 is reused later for the 0.05 s rounding threshold and final pause.
+    lui  x6, 0x4787           # x6 = 75,000,000 cycles = 3 s
+    addi x6, x6, -1856
 
     addi x13, x0, 15         # All four LEDs on
     sw   x13, 0(x2)

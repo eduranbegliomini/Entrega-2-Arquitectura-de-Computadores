@@ -140,7 +140,7 @@ cover_data = [
 ]
 ct=Table(cover_data,colWidths=[33*mm,125*mm],hAlign="LEFT")
 ct.setStyle(TableStyle([("BACKGROUND",(0,0),(0,-1),NAVY),("TEXTCOLOR",(0,0),(0,-1),colors.white),("BACKGROUND",(1,0),(1,-1),PALE2),("GRID",(0,0),(-1,-1),0.4,BORDER),("VALIGN",(0,0),(-1,-1),"TOP"),("LEFTPADDING",(0,0),(-1,-1),7),("RIGHTPADDING",(0,0),(-1,-1),7),("TOPPADDING",(0,0),(-1,-1),8),("BOTTOMPADDING",(0,0),(-1,-1),8)]))
-story += [ct, Spacer(1, 12*mm), P("Estado de la entrega", "H2X"), P("El assembler propio genera 136 palabras y sus 14 pruebas unitarias pasan en este entorno. La síntesis RTL, la simulación de hardware y la programación física no se han ejecutado porque las herramientas FPGA no estaban instaladas; esas comprobaciones quedan identificadas explícitamente como pendientes.", "CalloutX"), Spacer(1, 20*mm), P("Documento de trabajo elaborado a partir del enunciado y del RTL entregado para el Proyecto 2.", "SmallX"), PageBreak()]
+story += [ct, Spacer(1, 12*mm), P("Estado de la entrega", "H2X"), P("El assembler propio genera 140 palabras y sus 14 pruebas unitarias pasan en este entorno. La síntesis RTL, la simulación de hardware y la programación física no se han ejecutado porque las herramientas FPGA no estaban instaladas; esas comprobaciones quedan identificadas explícitamente como pendientes.", "CalloutX"), Spacer(1, 20*mm), P("Documento de trabajo elaborado a partir del enunciado y del RTL entregado para el Proyecto 2.", "SmallX"), PageBreak()]
 
 story += [P("1. Objetivo y requisitos funcionales", "H1X"), P("El juego debe encender los cuatro LEDs durante al menos tres segundos, seleccionar un objetivo, medir la respuesta al botón asociado y mostrar el tiempo en décimas de segundo. Se registran diez respuestas correctas; después se muestra su promedio. Una respuesta incorrecta indica error y reinicia el intento sin borrar los aciertos acumulados.")]
 story += [table(["Requisito", "Respuesta de diseño", "Prueba prevista"], [
@@ -152,7 +152,7 @@ story += [table(["Requisito", "Respuesta de diseño", "Prueba prevista"], [
 ], [32*mm, 66*mm, 60*mm]), Spacer(1,4*mm), P("Interpretación temporal: los tres segundos son una preparación previa. El cronómetro de reacción comienza cuando se revela el único LED objetivo. La interpretación se basa en que no tiene sentido incluir la espera de preparación en el tiempo que tarda el jugador en reaccionar.", "CalloutX")]
 
 story += [P("2. Arquitectura del hardware", "H1X"), P("El módulo superior game_top instancia pochoco_soc y selecciona sw/game.hex como imagen de memoria. El SoC conecta el procesador Espino Core con la RAM unificada, los periféricos de la placa y el esclavo SPI. El contador libre se implementó dentro del módulo de periféricos en 0x0C. También se agregó una marca temporal en 0x10 que captura el contador en el mismo flanco de reloj que revela el LED objetivo.")]
-story += [ArchitectureDiagram(), Spacer(1,1*mm), P("2.1 Mapa de memoria", "H2X"), table(["Dirección", "Uso", "Operación"], [
+story += [ArchitectureDiagram(), Spacer(1,1*mm), P("Reset de encendido", "H2X"), P("El contador de power-on reset de pochoco_soc.v se amplió a 20 bits, manteniendo el procesador en reset durante aproximadamente 41,94 ms a 25 MHz para dar margen a la inicialización de la BRAM.", "BodyX"), P("2.1 Mapa de memoria", "H2X"), table(["Dirección", "Uso", "Operación"], [
     ("0x80000000", "Dos displays de siete segmentos", "sw"),
     ("0x80000004", "Cuatro LEDs", "sw"),
     ("0x80000008", "Estado de los cuatro botones", "lw"),
@@ -171,13 +171,13 @@ story += [table(["Intervalo", "Cálculo", "Ciclos"], [
 
 story += [P("4. Flujo del juego", "H1X"), table(["Fase", "Funcionamiento"], [
     ("Liberar botón", "Se espera a que no haya ninguna entrada activa para evitar reutilizar una pulsación mantenida."),
-    ("Preparación", "Se escribe 1111 en los LEDs y se espera 75.000.000 ciclos o más."),
+    ("Preparación", "Al inicio de cada ronda se recarga el umbral de 75.000.000 ciclos; luego se escribe 1111 en los LEDs y se espera al menos tres segundos."),
     ("Protección de pulsaciones", "Si un botón se mantuvo durante la preparación, el objetivo no se revela hasta soltarlo."),
     ("Elegir objetivo", "Se mezcla el contador con el estado LFSR; el valor bajo de dos bits selecciona índice 0–3."),
     ("Mostrar y medir", "El LED objetivo cambia y el hardware captura el contador de inicio en el mismo flanco de reloj."),
     ("Validar", "Se compara la máscara de botones con la máscara del objetivo. Una respuesta incorrecta indica EE y repite."),
     ("Acierto", "Se redondea el residuo temporal, se muestra el tiempo y se agrega al total de aciertos."),
-    ("Fin", "Tras diez aciertos se espera 0,5 s para mostrar la décima respuesta; luego se muestra el promedio y se apagan LEDs."),
+    ("Fin y reinicio", "Tras diez aciertos se muestra el promedio y se apagan los LEDs. La siguiente pulsación y su liberación vuelven a _start para iniciar otra partida."),
 ], [37*mm, 111*mm])]
 
 story += [P("5. Generación pseudoaleatoria", "H1X"), P("El estado se mantiene en ocho bits. Antes de elegir el objetivo, se combina mediante XOR con el byte bajo del contador leído tras la preparación y, si el estado queda en cero, se cambia a uno. En el paso LFSR, el bit 7 anterior sirve como realimentación; se calcula estado = (2 × estado) mod 256 y, si el bit alto era uno, se aplica XOR con 0x1D. El índice LED es estado AND 3.")]
@@ -197,7 +197,7 @@ story += [table(["Aspecto", "Sintaxis / validación"], [
     ("Directivas", "Se ignoran .section, .text, .global, .globl, .type y .size."),
     ("Rechazos", "Instrucciones no soportadas, sintaxis incorrecta, campos fuera de rango e instrucciones de shift."),
 ], [36*mm, 112*mm]), Spacer(1, 1.5*mm)]
-story += [P("Ejemplo de codificación: addi x1, x0, 1 produce 0x00100093. El opcode 0x13 identifica operaciones inmediatas; rd es x1, funct3 = 000 indica ADDI, rs1 es x0 y el inmediato es uno. El archivo game.hex contiene 136 palabras, menor que las 512 palabras de la RAM configurada.")]
+story += [P("Ejemplo de codificación: addi x1, x0, 1 produce 0x00100093. El opcode 0x13 identifica operaciones inmediatas; rd es x1, funct3 = 000 indica ADDI, rs1 es x0 y el inmediato es uno. El archivo game.hex contiene 140 palabras, menor que las 512 palabras de la RAM configurada.")]
 
 story += [P("8. Construcción", "H1X"), P("Desde la raíz del proyecto, los comandos previstos son:")]
 story += [Preformatted("make game       # assembler propio: sw/game.s -> sw/game.hex\nmake test       # pruebas unitarias del assembler\nmake bitstream  # Yosys + nextpnr-ice40 (--freq 25) + icepack\nmake prog       # programa la FPGA mediante iceprog", styles["CodeX"])]
@@ -205,7 +205,7 @@ story += [P("El módulo superior seleccionado es game_top. El Makefile utiliza l
 story += [P("Cambio de una constante para la defensa", "H2X"), P("Para cambiar la preparación de 3 s a 2 s, reemplazar en sw/game.s la pareja que carga 75.000.000 ciclos por la pareja que carga 50.000.000 ciclos. Después ejecutar make game para regenerar sw/game.hex con el assembler propio.", "BodyX"), Preformatted("# Antes: 3 s = 75.000.000 ciclos\nlui  x6, 0x4787\naddi x6, x6, -1856\n\n# Después: 2 s = 50.000.000 ciclos\nlui  x6, 0x2faf\naddi x6, x6, 128", styles["CodeX"])]
 
 story += [P("9. Verificación y limitaciones", "H1X"), table(["Prueba", "Resultado disponible", "Estado"], [
-    ("Assembler de game.s", "Genera 136 palabras de 32 bits.", "Verificado en Python"),
+    ("Assembler de game.s", "Genera 140 palabras de 32 bits.", "Verificado en Python"),
     ("Codificaciones conocidas", "ADDI, LUI, LW, SW, JAL y BNE contrastadas con palabras de referencia.", "14 pruebas unitarias pasan"),
     ("Etiquetas y rangos", "Saltos hacia delante/atrás, límites RV32E e inmediatos inválidos.", "Verificado en pruebas unitarias"),
     ("Temporización", "Constantes 75.000.000, 2.500.000, 1.250.000, 12.500.000, 25.000.000 y límite 2.500.000.000 comprobados aritméticamente.", "Verificado por cálculo"),

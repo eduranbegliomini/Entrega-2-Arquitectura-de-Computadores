@@ -19,12 +19,13 @@ module pochoco_soc #(
 );
   wire clk = i_Clk;
 
-  reg [3:0] por_cnt = 4'b0;
+  // Hold reset for about 42 ms at the Go Board's 25 MHz clock.
+  reg [19:0] por_cnt = 20'b0;
   wire rst_ni;
   always @(posedge clk) begin
-    if (por_cnt != 4'hF) por_cnt <= por_cnt + 4'd1;
+    if (por_cnt != 20'hF_FFFF) por_cnt <= por_cnt + 20'd1;
   end
-  assign rst_ni = (por_cnt == 4'hF);
+  assign rst_ni = (por_cnt == 20'hF_FFFF);
 
   wire        instr_req;
   wire [31:0] instr_addr, instr_rdata;

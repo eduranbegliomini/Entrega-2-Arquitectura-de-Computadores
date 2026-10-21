@@ -1,110 +1,74 @@
-# Proyecto 2 - Juego de reflejos sobre Pochoco SoC
+# Proyecto 2: Juego de reflejos sobre Pochoco SoC
 
-## Contenido
+Proyecto de Arquitectura de Computadores: juego de reflejos en Assembly para el Espino Core del Pochoco SoC, implementado sobre una Nandland Go Board con FPGA Lattice iCE40 HX1K-VQ100.
 
-- `rtl/`: Pochoco SoC, Espino Core, periféricos y `game_top`.
-- `sw/game.s`: programa del juego en Assembly RV32E.
-- `sw/game.hex`: código máquina generado por el assembler del proyecto.
-- `tools/assembler.py`: assembler propio de dos pasadas; no invoca herramientas RISC-V externas.
-- `tests/`: pruebas unitarias del assembler y comprobaciones estáticas.
-- `docs/informe.pdf`: informe técnico para la entrega.
-- `docs/informe.md`: fuente editable del informe.
+El informe técnico de entrega está en `docs/informe.pdf`. Según ese informe, el juego fue probado en la placa y funciona.
 
-## Requisitos de herramientas
+## Archivos principales
 
-Para regenerar `game.hex` se necesita Python 3.10 o posterior. Para sintetizar/programar la Go Board se necesitan las herramientas de la cadena open-source: Yosys, nextpnr-ice40, icepack e iceprog. El entorno en el que se preparó este paquete no tiene instaladas esas herramientas FPGA, de modo que la compilación física debe validarse en un computador con ellas y con la placa conectada.
+- `sw/game.s`: juego en Assembly RV32E.
+- `sw/game.hex`: instrucciones máquina generadas por el assembler propio.
+- `tools/assembler.py`: assembler de dos pasadas.
+- `tests/test_assembler.py`: 14 pruebas unitarias del assembler y verificaciones estáticas.
+- `rtl/pochoco_soc.v`: SoC con reset de encendido extendido a un contador de 20 bits (~42 ms a 25 MHz).
+- `rtl/pochoco_periph.v`: display, LEDs, botones sincronizados, contador de ciclos y marca de inicio del LED objetivo.
+- `rtl/game_top.v`: módulo superior conectado a los pines definidos en `goboard.pcf`.
+- `sw/prueba.s`: diagnóstico del SoC; los LEDs siguen a los botones y el display cuenta en hexadecimal.
+- `test_placa/test_placa.v` y `test_placa.bat`: diagnóstico sin procesador para revisar reloj, displays, LEDs, botones y programación.
+- `docs/informe.pdf`: informe técnico de cinco páginas.
 
-## Regenerar el programa
+## Herramientas
 
-Desde la carpeta raíz del proyecto:
+Ejecuta los scripts desde la consola de OSS CAD Suite para Windows, con `python`, `yosys`, `nextpnr-ice40`, `icepack` e `iceprog` disponibles en el `PATH`.
 
-```sh
-make game
+## Compilar y programar el juego
+
+Desde la raíz del proyecto, ejecuta:
+
+```bat
+build.bat
 ```
 
-O, directamente:
+El script ensambla `sw/game.s` con `tools/assembler.py`, ejecuta las 14 pruebas, sintetiza el top `game_top`, ejecuta place-and-route, genera `game_top.bin` y programa la Go Board. Para evitar el problema de Yosys descrito en el informe, el flujo usa ABC con LUT4 en vez del paso ABC9.
 
-```sh
-python3 tools/assembler.py sw/game.s -o sw/game.hex
+## Diagnósticos de hardware
+
+Para programar la variante de diagnóstico basada en el SoC:
+
+```bat
+build.bat prueba
 ```
 
-El archivo de salida contiene una palabra de 32 bits, como ocho dígitos hexadecimales, por línea. No se utiliza un assembler RISC-V externo.
+En esta variante los LEDs reflejan los botones y el display cuenta en hexadecimal. Para regresar al juego, vuelve a ejecutar `build.bat` sin argumentos.
 
-### Ejemplo para modificar una constante durante la defensa
+Para programar el diagnóstico independiente del procesador:
 
-Para cambiar la preparación de 3 s a 2 s, en `sw/game.s` reemplaza las dos instrucciones que cargan 75.000.000 ciclos antes de `prep_wait`:
-
-```asm
-    lui  x6, 0x4787
-    addi x6, x6, -1856
+```bat
+test_placa.bat
 ```
 
-por las que cargan 50.000.000 ciclos:
+En este diseño los LEDs reflejan directamente las entradas de los botones y los displays cuentan en hexadecimal. Para regresar al juego, ejecuta nuevamente `build.bat`.
 
-```asm
-    lui  x6, 0x2faf
-    addi x6, x6, 128
+## Ejecutar las pruebas unitarias
+
+```bat
+python -m unittest discover -s tests -v
 ```
 
-Después ejecuta `make game` para regenerar `sw/game.hex` y vuelve a ejecutar las pruebas. Este cambio modifica solo la constante de preparación; no cambia la constante de 2.500.000 ciclos por décima.
+Las 14 pruebas cubren codificaciones, etiquetas, restricciones de registros e inmediatos, instrucciones no soportadas, el tamaño del juego en RAM y aspectos estáticos del programa. El informe describe los ensayos efectuados en la placa.
 
-## Ejecutar las pruebas disponibles
+## Mapa de memoria MMIO
 
-```sh
-make test
-```
-
-También se puede ejecutar:
-
-```sh
-python3 -m unittest discover -s tests -v
-```
-
-Estas pruebas validan codificaciones conocidas, etiquetas, rangos, registros RV32E, instrucciones prohibidas y el formato/tamaño del archivo generado. No sustituyen una simulación RTL ni una prueba física en FPGA.
-
-## Sintetizar y generar el bitstream
-
-```sh
-make bitstream
-```
-
-El flujo genera `game_top.json`, `game_top.asc` y `game_top.bin`. La selección de pines está en `goboard.pcf`, el módulo superior de síntesis es `game_top` y nextpnr recibe el objetivo de temporización `--freq 25` (25 MHz).
-
-## Programar la Go Board
-
-Con la placa conectada por USB y `iceprog` instalado:
-
-```sh
-make prog
-```
-
-Este comando programa el bitstream en la placa. No se ha ejecutado desde el entorno donde se creó este paquete.
-
-## Mapa de memoria
-
-| Dirección | Uso | Operación |
+| Dirección | Uso | Acceso |
 |---|---|---|
 | `0x80000000` | Dos displays de siete segmentos | Escritura |
 | `0x80000004` | Cuatro LEDs | Escritura |
 | `0x80000008` | Cuatro botones | Lectura |
-| `0x8000000C` | Contador libre de ciclos de 32 bits | Lectura |
-| `0x80000010` | Marca temporal capturada al revelar el LED objetivo | Lectura |
+| `0x8000000C` | Contador de ciclos de 32 bits | Lectura |
+| `0x80000010` | Marca temporal al encender el LED objetivo | Lectura |
 
-El contador es reiniciado con el reset del SoC e incrementa una unidad por ciclo de `i_Clk`. Al escribir una máscara de un solo LED en el registro de LEDs, el hardware captura el contador en el registro de `0x80000010` en el mismo flanco de reloj que presenta el objetivo; el programa usa esa marca temporal para medir la respuesta. Las entradas de botones pasan por un sincronizador de dos registros; esto reduce el riesgo de metastabilidad, pero no reemplaza un filtro de rebote mecánico.
+## Funcionamiento documentado
 
-## Convenciones del juego
+Al comenzar cada ronda se encienden los cuatro LEDs durante tres segundos. Después se enciende un LED objetivo y se mide el tiempo de reacción. El tiempo individual se expresa en décimas de segundo; un botón incorrecto muestra `EE` y repite la ronda sin perder los aciertos anteriores. Tras diez aciertos se muestra el promedio, se apagan los LEDs y el programa queda en su bucle final, tal como está representado en el diagrama de flujo de `docs/informe.pdf`.
 
-- Los cuatro LEDs permanecen encendidos al menos tres segundos al comenzar cada intento.
-- Si se mantiene pulsado un botón durante la preparación, se espera a que se suelte antes de revelar el objetivo.
-- El cronómetro se toma cuando se enciende solamente el LED objetivo. Esta interpretación separa los tres segundos de preparación del tiempo de reacción.
-- Los tiempos se redondean a la décima más cercana. Los dos displays muestran dos dígitos decimales, por ejemplo `37` significa 3,7 segundos. El final de la medición es la lectura del contador que hace el programa tras detectar la pulsación; por ello incluye una pequeña latencia de sincronización y sondeo, muy inferior a una décima de segundo.
-- `EE` indica botón incorrecto; la ronda se reinicia al soltar el botón y los aciertos acumulados se conservan.
-- `FF` indica que el tiempo individual o el promedio redondea a 10,0 segundos o más. Los tiempos individuales se muestran en décimas; la suma del promedio acumula la duración exacta en ciclos, sin redondear cada respuesta.
-- Tras diez aciertos, el promedio se redondea a la décima más cercana y queda mostrado indefinidamente con los LEDs apagados.
-
-## Limitaciones y verificación pendiente
-
-1. El código del assembler y sus pruebas unitarias se han ejecutado en Python. El archivo `game.hex` contiene 136 palabras, dentro de las 512 palabras de RAM configuradas por defecto.
-2. La frecuencia de 25 MHz se basa en la documentación de la Go Board. A esa frecuencia, la preparación de tres segundos corresponde a 75.000.000 ciclos; una décima corresponde a 2.500.000 ciclos.
-3. El RTL no ha podido sintetizarse o simularse en este entorno porque no se encontraron `yosys`, `nextpnr-ice40`, `icepack`, `iceprog`, `iverilog` ni `verilator` instalados.
-4. Deben verificarse en la placa la polaridad/orden de los botones, el comportamiento del timer MMIO, la duración física de tres segundos y la respuesta real del CPU. No se afirma que esas pruebas físicas estén completadas.
+La constante de preparación de 3 s está cargada al comienzo de cada ronda porque `x6` se reutiliza para otros intervalos. El reset de encendido del SoC usa un contador de 20 bits para esperar aproximadamente 42 ms antes de liberar al procesador.
