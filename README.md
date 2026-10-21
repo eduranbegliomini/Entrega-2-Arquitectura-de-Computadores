@@ -21,15 +21,29 @@ El informe técnico de entrega está en `docs/informe.pdf`. Según ese informe, 
 
 Ejecuta los scripts desde la consola de OSS CAD Suite para Windows, con `python`, `yosys`, `nextpnr-ice40`, `icepack` e `iceprog` disponibles en el `PATH`.
 
-## Compilar y programar el juego
+### Regenerar `game.hex` desde `game.s`
 
-Desde la raíz del proyecto, ejecuta:
+Para generar el código máquina a partir del programa Assembly, ejecuta desde la raíz del proyecto:
+
+```bat
+python tools\assembler.py sw\game.s -o sw\game.hex --symbols sw\game.symbols
+```
+
+Este comando ejecuta el assembler propio y genera `sw/game.hex`, con las instrucciones máquina que cargará el procesador. También genera `sw/game.symbols`, con la información de las etiquetas.
+
+### Sintetizar y programar la FPGA
+
+Para ejecutar el flujo completo de compilación y programación de la Go Board, ejecuta:
 
 ```bat
 build.bat
 ```
 
-El script ensambla `sw/game.s` con `tools/assembler.py`, ejecuta las 14 pruebas, sintetiza el top `game_top`, ejecuta place-and-route, genera `game_top.bin` y programa la Go Board. Para evitar el problema de Yosys descrito en el informe, el flujo usa ABC con LUT4 en vez del paso ABC9.
+El script ensambla `sw/game.s`, ejecuta las 14 pruebas unitarias, sintetiza el módulo superior `game_top`, realiza la etapa de *place-and-route*, genera el bitstream `game_top.bin` y programa la FPGA Lattice iCE40 HX1K-VQ100 de la Go Board.
+
+El flujo utiliza ABC con LUT4 en lugar de ABC9 para evitar el problema de Yosys documentado en el informe.
+
+Si modificas `sw/game.s`, vuelve a ejecutar `build.bat` para regenerar el código máquina, volver a comprobar el proyecto y programar la nueva versión en la placa.
 
 ## Diagnósticos de hardware
 
@@ -69,6 +83,14 @@ Las 14 pruebas cubren codificaciones, etiquetas, restricciones de registros e in
 
 ## Funcionamiento documentado
 
-Al comenzar cada ronda se encienden los cuatro LEDs durante tres segundos. Después se enciende un LED objetivo y se mide el tiempo de reacción. El tiempo individual se expresa en décimas de segundo; un botón incorrecto muestra `EE` y repite la ronda sin perder los aciertos anteriores. Tras diez aciertos se muestra el promedio, se apagan los LEDs y el programa queda en su bucle final, tal como está representado en el diagrama de flujo de `docs/informe.pdf`.
+El juego utiliza un reloj de 25 MHz, por lo que cada ciclo dura 40 ns y se producen 25.000.000 de ciclos por segundo. Al comenzar cada ronda, los cuatro LEDs permanecen encendidos durante al menos tres segundos, equivalentes a 75.000.000 de ciclos. Después, se selecciona un LED objetivo mediante un generador pseudoaleatorio basado en un LFSR de 8 bits, combinado con información del contador de ciclos.
 
-La constante de preparación de 3 s está cargada al comienzo de cada ronda porque `x6` se reutiliza para otros intervalos. El reset de encendido del SoC usa un contador de 20 bits para esperar aproximadamente 42 ms antes de liberar al procesador.
+La medición de la respuesta comienza en el mismo flanco de reloj en que el periférico registra la escritura de la máscara del LED objetivo. El programa consulta el contador de ciclos y convierte el tiempo de reacción a décimas de segundo utilizando 2.500.000 ciclos por décima.
+
+Si se presiona un botón incorrecto, el display muestra `EE` y se reinicia la ronda actual sin perder las respuestas correctas acumuladas. El juego continúa hasta obtener diez respuestas correctas. Después calcula y muestra el promedio de los diez tiempos, expresado en décimas de segundo, y el programa queda en un bucle final.
+
+El promedio se calcula a partir de los ciclos acumulados de las respuestas correctas, antes de redondear los tiempos individuales. Esto evita que el promedio dependa de la suma de los valores individuales ya redondeados.
+
+La constante correspondiente a la preparación de tres segundos se carga al comienzo de cada ronda porque el registro `x6` se reutiliza para otros intervalos. El reset de encendido del SoC utiliza un contador de 20 bits para esperar aproximadamente 42 ms a 25 MHz antes de liberar al procesador.
+
+Después de completar las diez respuestas correctas, el programa no implementa un reinicio mediante botón. Para iniciar otra partida, vuelve a programar el juego ejecutando `build.bat`.
